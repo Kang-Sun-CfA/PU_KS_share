@@ -11,14 +11,17 @@ function output_regrid = F_regrid_IASI_NARR(inp,output_subset)
 % As a result you need to know where the NARR data are. They were saved to
 % SAO unix systems using a proprietary code fetch_NARR_monthlydownload.m
 
-% then it categorize omi pixel according to wind direction, wind speed, and
+% then it categorize iasi pixel according to wind direction, wind speed, and
 % pixel pbl temperature
 
-% it also rotates the omi pixel and align the wind direction. both the
+% it also rotates the iasi pixel and align the wind direction. both the
 % non-rotated and rotated sums are output.
 
 
 % Modified from F_regrid_IASI_km.m by Kang Sun on 2017/11/13
+
+% Significant update on 2017/11/21 to correct rotation angle in km
+% projection
 
 output_regrid = [];
 
@@ -48,12 +51,12 @@ nT = length(T_bin)-1;
 
 which_wind = inp.which_wind;
 
-% the pixel geometry is much more elegant than the lat lon version
-u_km = inp.u_km;
-v_km = inp.v_km;
-t_km = inp.t_km;
-pixel_left = inp.pixel_left;
-pixel_down = inp.pixel_down;
+% % the pixel geometry is much more elegant than the lat lon version
+% u_km = inp.u_km;
+% v_km = inp.v_km;
+% %t_km = inp.t_km;% t_km is not a constant field. need case-by-case calc
+% pixel_left = inp.pixel_left;
+% pixel_down = inp.pixel_down;
 
 Startdate = inp.Startdate;
 Enddate = inp.Enddate;
@@ -96,17 +99,26 @@ disp([num2str(nL2),' pixels to be regridded...'])
 
 Lon = output_subset.lon(validmask);
 Lat = output_subset.lat(validmask);
-Ifov = output_subset.ifov(validmask);
+% Ifov = output_subset.ifov(validmask);
 ColNH3 = output_subset.colnh3(validmask);
 ColNH3e = output_subset.colnh3error(validmask);
 UTC = output_subset.utc(validmask);
 
+% "e" stands for "ellipse"
+Ue = output_subset.u(validmask);
+Ve = output_subset.v(validmask);
+Te = output_subset.t(validmask);
+
+
 [UTC, I] = sort(UTC);
-Lat = Lat(I,:);
-Lon = Lon(I,:);
-Ifov = Ifov(I);
+Lat = Lat(I);
+Lon = Lon(I);
+% Ifov = Ifov(I);
 ColNH3 = ColNH3(I);
 ColNH3e = ColNH3e(I);
+Ue = Ue(I);
+Ve = Ve(I);
+Te = Te(I);
 
 % allocate space for wind, associated with each satellite pixel
 U_sat_pbl = nan(size(Lat),'single');
@@ -140,7 +152,7 @@ totalindex = 1:nL2;
 % work out the wind interpolation day-by-day
 disp('Interpolating NARR wind to satellite pixel locations...')
 
-for narr_date = datenum(day_1(1:3)):1:datenum(day_end(1:3));
+for narr_date = datenum(day_1(1:3)):1:datenum(day_end(1:3))
     int = UTC > datenum(narr_date) & UTC <= datenum(narr_date)+1;
     if sum(int) > 0
         [N,~,bin] = histcounts(UTC(int),narr_date+[narr_hour_vec-1.5,narr_hour_vec(end)+1.5]/24);
@@ -167,7 +179,7 @@ for narr_date = datenum(day_1(1:3)):1:datenum(day_end(1:3));
                 inp_interp_narr.mstruct_narr = mstruct_narr;
                 inp_interp_narr.max_x = max_x;
                 inp_interp_narr.max_y = max_y;
-                inp_interp_narr.P_pblmax = 100;% maximum pbl thickness in hPa
+                inp_interp_narr.P_pblmax = 500;% maximum pbl thickness in hPa
                 outp_interp_narr = F_interp_narr(inp_interp_narr);
                 
                 idx_interp_hour = idx_interp_day(bin == ibin);
@@ -183,12 +195,20 @@ for narr_date = datenum(day_1(1:3)):1:datenum(day_end(1:3));
 end
 
 disp('Converting pixel lat lon to x y in km...')
+% calculate four anchor points for each oval
+Lon_r = nan(nL2,4,'single');
+Lat_r = nan(nL2,4,'single');
+for il2 = 1:nL2
+    X = F_construct_ellipse([Lon(il2);Lat(il2)],Ve(il2),Ue(il2),Te(il2),5,0); 
+    Lon_r(il2,:) = X(1,1:end-1);
+    Lat_r(il2,:) = X(2,1:end-1);
+end
 % call function F_latlon2xy to convert lat lon to x y.
 inp_xy = [];
 inp_xy.clon = clon;
 inp_xy.clat = clat;
-inp_xy.lon = Lon(:);
-inp_xy.lat = Lat(:);
+inp_xy.lon = [Lon_r,Lon(:)];
+inp_xy.lat = [Lat_r,Lat(:)];
 outp_xy = F_latlon2xy(inp_xy);
 
 disp('Categorize data based on WS/WD/T...')
@@ -231,15 +251,17 @@ for iwd = 1:nwd
             nl2 = sum(use_idx);
             disp([num2str([iwd iws iT]),' has ',num2str(nl2),' pixels'])
             if nl2 > 0
-               x_c_inp = outp_xy.x(use_idx);
-               y_c_inp = outp_xy.y(use_idx);
+               x_r_inp = outp_xy.x(use_idx,1:4);
+               y_r_inp = outp_xy.y(use_idx,1:4);
+               x_c_inp = outp_xy.x(use_idx,5);
+               y_c_inp = outp_xy.y(use_idx,5);
                
                %ws_inp = ws_vec_rot(use_idx);
                wd_inp = wd_vec_rot(use_idx);
                
                vcd_inp = ColNH3(use_idx);
                vcde_inp = ColNH3e(use_idx);
-               xtrack_inp = Ifov(use_idx);
+%                xtrack_inp = Ifov(use_idx);
                
                Sum_Above = zeros(nrows,ncols,'single');
                Sum_Below = zeros(nrows,ncols,'single');
@@ -250,25 +272,35 @@ for iwd = 1:nwd
                Sum_SGr = zeros(nrows,ncols,'single');
                
                parfor il2 = 1:nl2
+                   x_r = x_r_inp(il2,:);
+                   y_r = y_r_inp(il2,:);
                    x_c = x_c_inp(il2);
                    y_c = y_c_inp(il2);
                    
-                   %ws = ws_inp(il2);
+%                    ws = ws_inp(il2);
                    wd = wd_inp(il2);
                    
-                   xy_rot = [cos(wd) sin(wd);-sin(wd) cos(wd)]*[x_c;y_c];
-                   x_cr = xy_rot(1);
-                   y_cr = xy_rot(2);
+                   xy_rot = [cos(wd) sin(wd);-sin(wd) cos(wd)]*[x_r x_c;y_r y_c];
+%                    x_rr = xy_rot(1,1:4);
+%                    y_rr = xy_rot(2,1:4);
+                   x_cr = xy_rot(1,5);
+                   y_cr = xy_rot(2,5);
                    
-                   ifov = xtrack_inp(il2);
+%                    ifov = xtrack_inp(il2);
                    vcd = vcd_inp(il2);
                    vcd_unc = vcde_inp(il2);
                    
-                   u = u_km(ifov);
-                   v = v_km(ifov);
-                   t = t_km(ifov);
+                   dy = y_r(1)-y_r(3);
+                   dx = x_r(1)-x_r(3);
+                   if dx >= 0
+                       t_km_local = atan(dy/dx);
+                   else
+                       t_km_local = pi+atan(dy/dx);
+                   end
+                   v_km_local = sqrt(dx^2+dy^2)/2;
+                   u_km_local = sqrt((y_r(4)-y_r(2))^2+(x_r(4)-x_r(2))^2)/2;
                    
-                   pixel_edge = max(abs([pixel_left(ifov),pixel_down(ifov)]));
+                   pixel_edge = max([v_km_local,u_km_local]);
                    pixel_edge_inflate = max([xmargin ymargin]);
                    
                    local_left = x_c-pixel_edge_inflate*pixel_edge;
@@ -283,15 +315,22 @@ for iwd = 1:nwd
                    x_local_mesh = xmesh(y_index,x_index);
                    y_local_mesh = ymesh(y_index,x_index);
                    
-                   SG = F_2D_SG(x_local_mesh,y_local_mesh,x_c,y_c,2*v,2*u,2,2,-t);
+                   SG = F_2D_SG(x_local_mesh,y_local_mesh,x_c,y_c,2*v_km_local,2*u_km_local,2,2,-t_km_local);
+                   
+%                    close
+%                    hold on
+%                    h = pcolor(x_local_mesh,y_local_mesh,double(SG));
+%                    set(h,'edgecolor','none')
+%                    plot(x_r,y_r,'*',x_c,y_c,'o',x_rr,y_rr,'*',x_cr,y_cr,'o')
+%                    quiver(x_c,y_c,ws*cos(wd),ws*sin(wd))
                    
                    sum_above_local = zeros(nrows,ncols,'single');
                    sum_below_local = zeros(nrows,ncols,'single');
                    D_local = zeros(nrows,ncols,'single');
                    
                    D_local(y_index,x_index) = SG;
-                   sum_above_local(y_index,x_index) = SG/(u*v)/vcd_unc*vcd;
-                   sum_below_local(y_index,x_index) = SG/(u*v)/vcd_unc;
+                   sum_above_local(y_index,x_index) = SG/(u_km_local*v_km_local)/vcd_unc*vcd;
+                   sum_below_local(y_index,x_index) = SG/(u_km_local*v_km_local)/vcd_unc;
                    Sum_Above = Sum_Above + sum_above_local;
                    Sum_Below = Sum_Below + sum_below_local;
                    Sum_SG = Sum_SG+D_local;
@@ -309,15 +348,22 @@ for iwd = 1:nwd
                    x_local_mesh = xmesh(y_index,x_index);
                    y_local_mesh = ymesh(y_index,x_index);
                    
-                   SG = F_2D_SG(x_local_mesh,y_local_mesh,x_cr,y_cr,2*v,2*u,2,2,-t+wd);
+                   SG = F_2D_SG(x_local_mesh,y_local_mesh,x_cr,y_cr,2*v_km_local,2*u_km_local,2,2,-t_km_local+wd);
+                   
+%                    close
+%                    hold on
+%                    h = pcolor(x_local_mesh,y_local_mesh,double(SG));
+%                    set(h,'edgecolor','none')
+%                    plot(x_r,y_r,'*',x_c,y_c,'o',x_rr,y_rr,'*',x_cr,y_cr,'o')
+%                    quiver(x_c,y_c,ws*cos(wd),ws*sin(wd))
                    
                    sum_above_local = zeros(nrows,ncols,'single');
                    sum_below_local = zeros(nrows,ncols,'single');
                    D_local = zeros(nrows,ncols,'single');
                    
                    D_local(y_index,x_index) = SG;
-                   sum_above_local(y_index,x_index) = SG/(u*v)/vcd_unc*vcd;
-                   sum_below_local(y_index,x_index) = SG/(u*v)/vcd_unc;
+                   sum_above_local(y_index,x_index) = SG/(u_km_local*v_km_local)/vcd_unc*vcd;
+                   sum_below_local(y_index,x_index) = SG/(u_km_local*v_km_local)/vcd_unc;
                    Sum_Abover = Sum_Abover + sum_above_local;
                    Sum_Belowr = Sum_Belowr + sum_below_local;
                    Sum_SGr = Sum_SGr+D_local;

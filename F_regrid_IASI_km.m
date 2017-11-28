@@ -5,14 +5,10 @@ function output_regrid = F_regrid_IASI_km(inp,output_subset)
 
 % Modified from F_regrid_IASI.m by Kang Sun on 2017/09/24
 
-output_regrid = [];
+% Significant update on 2017/11/21 to correct rotation angle in km
+% projection
 
-% the pixel geometry is much more elegant than the lat lon version
-u_km = inp.u_km;
-v_km = inp.v_km;
-t_km = inp.t_km;
-pixel_left = inp.pixel_left;
-pixel_down = inp.pixel_down;
+output_regrid = [];
 
 Startdate = inp.Startdate;
 Enddate = inp.Enddate;
@@ -42,7 +38,7 @@ xmargin = 3; % how many times to extend zonally
 ymargin = 2; % how many times to extend meridonally
 
 f1 = output_subset.utc >= single(datenum([Startdate 0 0 0])) ...
-    & output_subset.utc <= single(datenum([Enddate 0 0 0]));
+    & output_subset.utc <= single(datenum([Enddate 23 59 59]));
 f2 = output_subset.lat >= min_lat-0.5 & output_subset.lat <= max_lat+0.5...
     & output_subset.lon >= min_lon-0.5 & output_subset.lon <= max_lon+0.5;
 f3 = ~isnan(output_subset.colnh3);
@@ -55,17 +51,30 @@ disp([num2str(nL2),' pixels to be regridded...'])
 
 Lon = output_subset.lon(validmask);
 Lat = output_subset.lat(validmask);
-Ifov = output_subset.ifov(validmask);
+% Ifov = output_subset.ifov(validmask);
 ColNH3 = output_subset.colnh3(validmask);
 ColNH3e = output_subset.colnh3error(validmask);
 
+% "e" stands for "ellipse"
+Ue = output_subset.u(validmask);
+Ve = output_subset.v(validmask);
+Te = output_subset.t(validmask);
+
 disp('Converting pixel lat lon to x y in km...')
+% calculate four anchor points for each oval
+Lon_r = nan(nL2,4,'single');
+Lat_r = nan(nL2,4,'single');
+for il2 = 1:nL2
+    X = F_construct_ellipse([Lon(il2);Lat(il2)],Ve(il2),Ue(il2),Te(il2),5,0); 
+    Lon_r(il2,:) = X(1,1:end-1);
+    Lat_r(il2,:) = X(2,1:end-1);
+end
 % call function F_latlon2xy to convert lat lon to x y.
 inp_xy = [];
 inp_xy.clon = clon;
 inp_xy.clat = clat;
-inp_xy.lon = Lon(:);
-inp_xy.lat = Lat(:);
+inp_xy.lon = [Lon_r,Lon(:)];
+inp_xy.lat = [Lat_r,Lat(:)];
 outp_xy = F_latlon2xy(inp_xy);
 
 disp('Calculating spatial response functions pixel by pixel...')
@@ -74,34 +83,45 @@ Sum_Below = zeros(nrows,ncols,'single');
 D = zeros(nrows,ncols,'single');
 count = 1;
 for i = 1:nL2
-    x = outp_xy.x(i);
-    y = outp_xy.y(i);
+    x = outp_xy.x(i,5);
+    y = outp_xy.y(i,5);
+    x_r = outp_xy.x(i,1:4);
+    y_r = outp_xy.y(i,1:4);
 
-    ifov = Ifov(i);
+%     ifov = Ifov(i);
     colnh3 = ColNH3(i);
     colnh3e = ColNH3e(i);
     
-    u = u_km(ifov);
-    v = v_km(ifov);
-    t = t_km(ifov);
+    dy = y_r(1)-y_r(3);
+                   dx = x_r(1)-x_r(3);
+                   if dx >= 0
+                       t_km_local = atan(dy/dx);
+                   else
+                       t_km_local = pi+atan(dy/dx);
+                   end
+                   v_km_local = sqrt(dx^2+dy^2)/2;
+                   u_km_local = sqrt((y_r(4)-y_r(2))^2+(x_r(4)-x_r(2))^2)/2;
+                   
+                   pixel_edge = max([v_km_local,u_km_local]);
+                   pixel_edge_inflate = max([xmargin ymargin]);
     
-    local_left = x+xmargin*pixel_left(ifov);
-    local_right = x-xmargin*pixel_left(ifov);
-    
-    local_bottom = y+ymargin*pixel_down(ifov);
-    local_top = y-ymargin*pixel_down(ifov);
+    local_left = x-pixel_edge_inflate*pixel_edge;
+                   local_right = x+pixel_edge_inflate*pixel_edge;
+                   
+                   local_bottom = y-pixel_edge_inflate*pixel_edge;
+                   local_top = y+pixel_edge_inflate*pixel_edge;
     
     x_local_index = xgrid >= local_left & xgrid <= local_right;
     y_local_index = ygrid >= local_bottom & ygrid <= local_top;
     
     x_local_mesh = xmesh(y_local_index,x_local_index);
     y_local_mesh = ymesh(y_local_index,x_local_index);
-    SG = F_2D_SG(x_local_mesh,y_local_mesh,x,y,2*v,2*u,2,2,-t);
+    SG = F_2D_SG(x_local_mesh,y_local_mesh,x,y,2*v_km_local,2*u_km_local,2,2,-t_km_local);
     
     Sum_Above(y_local_index,x_local_index) = Sum_Above(y_local_index,x_local_index)+...
-        SG/(v*u)/colnh3e*colnh3;
+        SG/(v_km_local*u_km_local)/colnh3e*colnh3;
     Sum_Below(y_local_index,x_local_index) = Sum_Below(y_local_index,x_local_index)+...
-        SG/(v*u)/colnh3e;
+        SG/(v_km_local*u_km_local)/colnh3e;
     D(y_local_index,x_local_index) = D(y_local_index,x_local_index)+SG;
     
     if i == count*round(nL2/10)
