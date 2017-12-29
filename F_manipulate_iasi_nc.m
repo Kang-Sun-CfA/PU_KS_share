@@ -33,20 +33,12 @@ inp.time = variable.time.data;
 inp.angle = variable.angle.data;
 
 if ifov_save.update
-    try
-        outp = F_guess_ifov(inp);
-        inpez = [];
-        inpez.ifov = outp.ifov;
-        inpez.angle = inp.angle;
-        outpez = F_ez_ifov(inpez);
-    catch
-        warning(['The 120 fovs are not complete for ',fn])
-        outp = F_guess_ifov_incomplete(inp);
-        inpez = [];
-        inpez.ifov = outp.ifov;
-        inpez.angle = inp.angle;
-        outpez = F_ez_ifov(inpez);
-    end
+    
+    outp = F_guess_ifov_60or120(inp);
+    inpez = [];
+    inpez.ifov = outp.ifov;
+    inpez.angle = inp.angle;
+    outpez = F_ez_ifov(inpez);
     
     data = [];
     data.lon = inp.lon(:);

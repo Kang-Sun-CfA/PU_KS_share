@@ -1,5 +1,5 @@
 % matlab script to subset v2.1 iasi data, downloaded using read_iasi_v2.m.
-% Turn on 'update_ifov' to generate ifov using F_guess_ifov(incomplete).m
+% Turn on 'update_ifov' to generate ifov using F_guess_ifov_60or120.m
 % Written by Kang Sun on 2017/12/29
 clear;clc
 if ispc
@@ -27,11 +27,11 @@ inp_subset.L2dir = L2dir;
 inp_subset.a_or_b = 'a';
 inp_subset.update_ifov = true;
 
-for iyear = 2007:2016
+for iyear = 2010:2016
     inp_subset.Startdate = [iyear 1 1];
     inp_subset.Enddate = [iyear 12 31];
-%     inp_subset.Startdate = [iyear 11 18];
-%     inp_subset.Enddate = [iyear 11 18];
+%     inp_subset.Startdate = [iyear 3 3];
+%     inp_subset.Enddate = [iyear 3 3];
     output_subset = F_subset_IASI_v2(inp_subset);
     % calculate pixel shape
     [output_subset.u, output_subset.v, output_subset.t] =...
