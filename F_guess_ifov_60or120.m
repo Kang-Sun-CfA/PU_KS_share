@@ -186,6 +186,7 @@ for iorbit = 1:length(int_orbit_cell)
                         else
                             p_lat = local_lat(ip);
                             p_lon = local_lon(ip);
+                            try
                             c_lat = interp1(lon_ct,lat_ct,p_lon,'linear','extrap');
                             above_or_below = p_lat > c_lat;
                             if (mod(p_anglen_s,2) == 0 && above_or_below) || ...
@@ -193,6 +194,10 @@ for iorbit = 1:length(int_orbit_cell)
                                 ifov(int_bad_position(ip)) = guess_ind(2);
                             else
                                 ifov(int_bad_position(ip)) = guess_ind(1);
+                            end
+                            catch
+                                warning(['Orbit # ',num2str(iorbit),' had some interp error'])
+                                ifov(int_bad_position(ip)) = nan;
                             end
                         end
                     end

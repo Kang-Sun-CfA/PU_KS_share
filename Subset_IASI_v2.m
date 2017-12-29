@@ -30,8 +30,8 @@ inp_subset.update_ifov = true;
 for iyear = 2010:2016
     inp_subset.Startdate = [iyear 1 1];
     inp_subset.Enddate = [iyear 12 31];
-%     inp_subset.Startdate = [iyear 3 3];
-%     inp_subset.Enddate = [iyear 3 3];
+%     inp_subset.Startdate = [iyear 9 23];
+%     inp_subset.Enddate = [iyear 9 23];
     output_subset = F_subset_IASI_v2(inp_subset);
     % calculate pixel shape
     [output_subset.u, output_subset.v, output_subset.t] =...
