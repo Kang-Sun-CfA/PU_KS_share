@@ -37,13 +37,27 @@ UTC = HH(:)/24+MM(:)/60/24+SS(:)/3600/24;
 difflat = diff(lat);
 
 ind_orbit = find(difflat > 90);
-if length(lat)-ind_orbit(end) > 5000
-    ind_orbit = [ind_orbit;length(lat)]; % disgard incomplete orbit
-end
-if ind_orbit(1) > 5000
-    ind_orbit = [0;ind_orbit];
-end
 
+if isempty(ind_orbit) % what if there is only one (or less) orbit of this day?!
+    int_orbit_cell = [];
+    int_orbit_cell{1} = single(1:length(lat));
+elseif length(ind_orbit) == 1 % two orbits?
+    int_orbit_cell = [];
+    int_orbit_cell{1} = single(1:ind_orbit);
+    int_orbit_cell{2} = single(ind_orbit+1:length(lat));
+else
+    if length(lat)-ind_orbit(end) > 5000
+        ind_orbit = [ind_orbit;length(lat)]; % disgard incomplete orbit
+    end
+    if ind_orbit(1) > 5000
+        ind_orbit = [0;ind_orbit];
+    end
+    
+    int_orbit_cell = cell(length(ind_orbit)-1,1);
+    for i = 1:length(ind_orbit)-1
+        int_orbit_cell{i} = single((ind_orbit(i)+1):ind_orbit(i+1));
+    end
+end
 
 int_orbit_cell = cell(length(ind_orbit)-1,1);
 for i = 1:length(ind_orbit)-1
