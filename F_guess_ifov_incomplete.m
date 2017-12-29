@@ -32,8 +32,9 @@ difflat = diff(lat);
 
 ind_orbit = find(difflat > 90);
 if length(lat)-ind_orbit(end) > 5000
-    ind_orbit = [0;ind_orbit;length(lat)]; % disgard incomplete orbit
-else
+    ind_orbit = [ind_orbit;length(lat)]; % disgard incomplete orbit
+end
+if ind_orbit(1) > 5000
     ind_orbit = [0;ind_orbit];
 end
 
