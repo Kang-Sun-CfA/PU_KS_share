@@ -7,8 +7,15 @@ function output_regrid = F_regrid_IASI_km(inp,output_subset)
 
 % Significant update on 2017/11/21 to correct rotation angle in km
 % projection
+% modified on 2018/01/14 to introduce rotating super Gaussian
 
 output_regrid = [];
+
+if isfield(inp,'k')
+    k = 2;
+else
+    k = inp.k;
+end
 
 Startdate = inp.Startdate;
 Enddate = inp.Enddate;
@@ -116,7 +123,7 @@ for i = 1:nL2
     
     x_local_mesh = xmesh(y_local_index,x_local_index);
     y_local_mesh = ymesh(y_local_index,x_local_index);
-    SG = F_2D_SG(x_local_mesh,y_local_mesh,x,y,2*v_km_local,2*u_km_local,2,2,-t_km_local);
+    SG = F_2D_SG_rotate(x_local_mesh,y_local_mesh,x,y,2*v_km_local,2*u_km_local,k,-t_km_local);
     
     Sum_Above(y_local_index,x_local_index) = Sum_Above(y_local_index,x_local_index)+...
         SG/(v_km_local*u_km_local)/colnh3e*colnh3;

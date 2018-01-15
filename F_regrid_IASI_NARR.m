@@ -22,6 +22,7 @@ function output_regrid = F_regrid_IASI_NARR(inp,output_subset)
 
 % Significant update on 2017/11/21 to correct rotation angle in km
 % projection
+% modified on 2018/01/14 to introduce rotating super Gaussian
 
 output_regrid = [];
 
@@ -43,6 +44,12 @@ if ~isfield(inp,'T_bin')
     T_bin = [0 inf];
 else
     T_bin = inp.T_bin;% in K
+end
+
+if isfield(inp,'k')
+    k = 2;
+else
+    k = inp.k;
 end
 
 nwd = length(wd_bin);
@@ -315,7 +322,7 @@ for iwd = 1:nwd
                    x_local_mesh = xmesh(y_index,x_index);
                    y_local_mesh = ymesh(y_index,x_index);
                    
-                   SG = F_2D_SG(x_local_mesh,y_local_mesh,x_c,y_c,2*v_km_local,2*u_km_local,2,2,-t_km_local);
+                   SG = F_2D_SG_rotate(x_local_mesh,y_local_mesh,x_c,y_c,2*v_km_local,2*u_km_local,k,-t_km_local);
                    
 %                    close
 %                    hold on
@@ -330,7 +337,7 @@ for iwd = 1:nwd
                    
                    D_local(y_index,x_index) = SG;
                    sum_above_local(y_index,x_index) = SG/(u_km_local*v_km_local)/vcd_unc*vcd;
-                   sum_below_local(y_index,x_index) = SG/(u_km_local*v_km_local)/vcd_unc;
+                  sum_below_local(y_index,x_index) = SG/(u_km_local*v_km_local)/vcd_unc;
                    Sum_Above = Sum_Above + sum_above_local;
                    Sum_Below = Sum_Below + sum_below_local;
                    Sum_SG = Sum_SG+D_local;
@@ -348,7 +355,7 @@ for iwd = 1:nwd
                    x_local_mesh = xmesh(y_index,x_index);
                    y_local_mesh = ymesh(y_index,x_index);
                    
-                   SG = F_2D_SG(x_local_mesh,y_local_mesh,x_cr,y_cr,2*v_km_local,2*u_km_local,2,2,-t_km_local+wd);
+                   SG = F_2D_SG_rotate(x_local_mesh,y_local_mesh,x_cr,y_cr,2*v_km_local,2*u_km_local,k,-t_km_local+wd);
                    
 %                    close
 %                    hold on
