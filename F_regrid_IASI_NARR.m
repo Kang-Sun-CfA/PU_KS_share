@@ -46,7 +46,7 @@ else
     T_bin = inp.T_bin;% in K
 end
 
-if isfield(inp,'k')
+if ~isfield(inp,'k')
     k = 2;
 else
     k = inp.k;
