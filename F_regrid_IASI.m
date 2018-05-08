@@ -9,6 +9,8 @@ function output_regrid = F_regrid_IASI(inp,output_subset)
 
 % written by Kang Sun on 2017/07/07
 % modified on 2018/01/14 to introduce rotating super Guassian
+% modified on 2018/04/03 to enable parallelization, remove tc, correct bug
+% of using constant k=2
 
 output_regrid = [];
 Res = inp.Res;
@@ -26,10 +28,15 @@ MarginLat = inp.MarginLat;
 else
     MarginLat = 0.5;
 end
-if isfield(inp,'k')
+if ~isfield(inp,'k')
     k = 2;
 else
     k = inp.k;
+end
+if isfield(inp,'if_parallel')
+    if_parallel = inp.if_parallel;
+else
+    if_parallel = false;
 end
 Startdate = inp.Startdate;
 Enddate = inp.Enddate;
@@ -56,14 +63,12 @@ f2 = output_subset.lat >= MinLat-MarginLat & output_subset.lat <= MaxLat+MarginL
     & output_subset.lon >= MinLon-MarginLon & output_subset.lon <= MaxLon+MarginLon;
 f3 = ~isnan(output_subset.colnh3);
 f4 = ~isnan(output_subset.colnh3error);
-f5 = ~isnan(output_subset.tc);
+% f5 = ~isnan(output_subset.tc);
 disp(['Regriding pixels from ',datestr([Startdate 0 0 0]),' to ',...
     datestr([Enddate 0 0 0])])
 disp(['In time & in box: ',num2str(sum(f1&f2))...
     '; NH3 not NaN: ',num2str(sum(f1&f2&f3)),...
-    '; NH3 error not NaN: ',num2str(sum(f1&f2&f3&f4)),...
-    '; TC not NaN: ',...
-    num2str(sum(f1&f2&f3&f4&f5))]);
+    '; NH3 error not NaN: ',num2str(sum(f1&f2&f3&f4))]);
 validmask = f1&f2&f3&f4;
 nL2 = sum(validmask);disp([num2str(nL2),' pixels to be regridded...'])
 if nL2 == 0
@@ -81,6 +86,8 @@ ColNH3e = output_subset.colnh3error(validmask);
 Sum_Above = zeros(nrows,ncols,'single');
 Sum_Below = zeros(nrows,ncols,'single');
 D = zeros(nrows,ncols,'single');
+
+if ~if_parallel
 count = 1;
 for i = 1:nL2
     lon = Lon(i);
@@ -117,6 +124,46 @@ for i = 1:nL2
         disp([num2str(count*10),' % finished'])
         count = count+1;
     end
+end
+else
+    parfor i = 1:nL2
+    lon = Lon(i);
+    lat = Lat(i);
+    u = U(i);
+    v = V(i);
+    t = T(i);
+    colnh3 = ColNH3(i);
+    colnh3e = ColNH3e(i);
+    % minlon_e is the minimum lon of the elliptical pixel, does not have to
+    % be super accurate; minlat_e is the minmum lat; X is the polygon
+    [~, minlon_e, minlat_e] =...
+        F_construct_ellipse([lon;lat],v,u,t,npoint_ellipse,0);
+    
+    local_left = lon-xmargin*(lon-minlon_e);
+    local_right = lon+xmargin*(lon-minlon_e);
+    
+    local_bottom = lat-ymargin*(lat-minlat_e);
+    local_top = lat+ymargin*(lat-minlat_e);
+    
+    x_local_index = xgrid >= local_left & xgrid <= local_right;
+    y_local_index = ygrid >= local_bottom & ygrid <= local_top;
+    
+    x_local_mesh = xmesh(y_local_index,x_local_index);
+    y_local_mesh = ymesh(y_local_index,x_local_index);
+    SG = F_2D_SG_rotate(x_local_mesh,y_local_mesh,lon,lat,2*v,2*u,k,-t);
+    
+    sum_above_local = zeros(nrows,ncols,'single');
+    sum_below_local = zeros(nrows,ncols,'single');
+    D_local = zeros(nrows,ncols,'single');
+    sum_above_local(y_local_index,x_local_index) = SG/(v*u)/colnh3e*colnh3;
+    sum_below_local(y_local_index,x_local_index) = SG/(v*u)/colnh3e;              
+    Sum_Above = Sum_Above + sum_above_local;
+    Sum_Below = Sum_Below + sum_below_local;
+    D = D+D_local;
+                   
+    end
+               
+    
 end
 output_regrid.A = Sum_Above;
 output_regrid.B = Sum_Below;

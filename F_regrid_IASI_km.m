@@ -11,7 +11,7 @@ function output_regrid = F_regrid_IASI_km(inp,output_subset)
 
 output_regrid = [];
 
-if isfield(inp,'k')
+if ~isfield(inp,'k')
     k = 2;
 else
     k = inp.k;
