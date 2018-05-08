@@ -38,6 +38,10 @@ if isfield(inp,'if_parallel')
 else
     if_parallel = false;
 end
+if isfield(inp,'vcdname')
+	output_subset.colnh3_true = output_subset.colnh3;
+	output_subset.colnh3 = output_subset.(inp.vcdname);
+end
 Startdate = inp.Startdate;
 Enddate = inp.Enddate;
 
