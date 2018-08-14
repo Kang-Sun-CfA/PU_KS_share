@@ -1,18 +1,5 @@
-function output_regrid = F_regrid_IASI(inp,output_subset)
-% function to take in the output from F_subset_IASI.m and regrid these L2
-% data to a L3 grid, defined by a lat lon box and resolution (Res).
-
-% the output contains four matrices, A, B, C, and D. A and B are cumulative
-% terms. C = A./B is the regridded concentration over this period. D is the
-% sum of unnormalized spatial response function. Large D means L3 grid is
-% covered by more L2 pixels.
-
-% written by Kang Sun on 2017/07/07
-% modified on 2018/01/14 to introduce rotating super Guassian
-% modified on 2018/04/03 to enable parallelization, remove tc, correct bug
-% of using constant k=2
-% modified on 2018/06/28 to prevent SG from being nan
-
+function output_regrid = F_regrid_IASI_KY(inp,output_subset)
+% updated from F_regrid_IASI.m to add Kai Yang discretization on 2018/07/17
 
 output_regrid = [];
 Res = inp.Res;
@@ -52,9 +39,12 @@ xgrid = (MinLon+0.5*Res):Res:MaxLon;
 ygrid = (MinLat+0.5*Res):Res:MaxLat;
 nrows = length(ygrid);
 ncols = length(xgrid);
+xgridr = [xgrid-0.5*Res xgrid(end)+0.5*Res];
+ygridr = [ygrid-0.5*Res ygrid(end)+0.5*Res];
 
 % define x y mesh
 [xmesh, ymesh] = meshgrid(single(xgrid),single(ygrid));
+[xmeshr, ymeshr] = meshgrid(single(xgridr),single(ygridr));
 
 % construct a rectangle envelopes the orginal pixel
 xmargin = 3; % how many times to extend zonally
@@ -114,12 +104,22 @@ for i = 1:nL2
     local_bottom = lat-ymargin*(lat-minlat_e);
     local_top = lat+ymargin*(lat-minlat_e);
     
-    x_local_index = xgrid >= local_left & xgrid <= local_right;
-    y_local_index = ygrid >= local_bottom & ygrid <= local_top;
+    x_local_index = find(xgrid >= local_left & xgrid <= local_right);
+    y_local_index = find(ygrid >= local_bottom & ygrid <= local_top);
     
     x_local_mesh = xmesh(y_local_index,x_local_index);
     y_local_mesh = ymesh(y_local_index,x_local_index);
+    
+    if isempty(x_local_index) || isempty(y_local_index)
     SG = F_2D_SG_rotate(x_local_mesh,y_local_mesh,lon,lat,2*v,2*u,k,-t);
+    else
+        x_local_meshr = xmeshr([y_local_index y_local_index(end)+1],[x_local_index x_local_index(end)+1]);
+    y_local_meshr = ymeshr([y_local_index y_local_index(end)+1],[x_local_index x_local_index(end)+1]);
+    SG = F_2D_SG_rotate_KY(x_local_meshr,y_local_meshr,x_local_mesh,y_local_mesh,lon,lat,2*v,2*u,k,-t);
+    end
+    
+    
+    
     SG(isnan(SG)|isinf(SG)) = 0;
     Sum_Above(y_local_index,x_local_index) = Sum_Above(y_local_index,x_local_index)+...
         SG/(v*u)/colnh3e*colnh3;
@@ -151,12 +151,19 @@ else
     local_bottom = lat-ymargin*(lat-minlat_e);
     local_top = lat+ymargin*(lat-minlat_e);
     
-    x_local_index = xgrid >= local_left & xgrid <= local_right;
-    y_local_index = ygrid >= local_bottom & ygrid <= local_top;
+    x_local_index = find(xgrid >= local_left & xgrid <= local_right);
+    y_local_index = find(ygrid >= local_bottom & ygrid <= local_top);
     
     x_local_mesh = xmesh(y_local_index,x_local_index);
     y_local_mesh = ymesh(y_local_index,x_local_index);
+    
+    if isempty(x_local_index) || isempty(y_local_index)
     SG = F_2D_SG_rotate(x_local_mesh,y_local_mesh,lon,lat,2*v,2*u,k,-t);
+    else
+        x_local_meshr = xmeshr([y_local_index y_local_index(end)+1],[x_local_index x_local_index(end)+1]);
+    y_local_meshr = ymeshr([y_local_index y_local_index(end)+1],[x_local_index x_local_index(end)+1]);
+    SG = F_2D_SG_rotate_KY(x_local_meshr,y_local_meshr,x_local_mesh,y_local_mesh,lon,lat,2*v,2*u,k,-t);
+    end
     
     sum_above_local = zeros(nrows,ncols,'single');
     sum_below_local = zeros(nrows,ncols,'single');
