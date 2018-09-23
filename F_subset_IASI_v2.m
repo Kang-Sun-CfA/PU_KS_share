@@ -4,6 +4,8 @@ function output = F_subset_IASI_v2(inp)
 
 % Re-written from F_subset_IASI.m by Kang Sun on 2017/12/28
 
+% Updated by Kang Sun on 2018/09/23 due to the change to v2.2/v2.2r data
+
 Startdate = inp.Startdate;
 Enddate = inp.Enddate;
 MinLat = inp.MinLat;
@@ -11,6 +13,12 @@ MinLon = inp.MinLon;
 MaxLat = inp.MaxLat;
 MaxLon = inp.MaxLon;
 MaxCF = inp.MaxCF*100;
+
+if ~isfield(inp,'IASI_version')
+    IASI_version = 'v2.1';
+else
+    IASI_version = inp.IASI_version;
+end
 
 % grey area, L2 pixel center cannot be there, but pixel boundaries can
 MarginLat = 0.5;
@@ -48,17 +56,46 @@ for iday = 1:nday
     ystr = num2str(year_array(iday));
     mstr = num2str(month_array(iday),'%02d');
     dstr = num2str(date_array(iday),'%02d');
-    fn = [L2dir,ystr,'/',num2str(month_array(iday)),'/',...
-        'IASI_metop',a_or_b,'_L2_NH3_',ystr,mstr,dstr,'_V2.1_AM_GLOBAL.nc'];
+    switch IASI_version
+        case 'v2.1'
+            fn = [L2dir,ystr,'/',num2str(month_array(iday)),'/',...
+                'IASI_metop',a_or_b,'_L2_NH3_',ystr,mstr,dstr,'_V2.1_AM_GLOBAL.nc'];
+            if ~exist(fn,'file')
+                disp([datestr(day_array(iday)),' L2 file is missing!'])
+                continue
+            end
+        case 'v2.2'
+            fn = [L2dir,ystr,'/',num2str(month_array(iday)),'/',...
+                'nh3nn_v2_2_',ystr,mstr,dstr,'_AM.nc'];
+            if ~exist(fn,'file')
+                disp([datestr(day_array(iday)),' L2 file is missing!'])
+                continue
+            end
+        case 'v2.2r'
+            fn = [];
+            fn.fn_v22 = [L2dir,ystr,'/',num2str(month_array(iday)),'/',...
+                'nh3nn_v2_2_',ystr,mstr,dstr,'_AM.nc'];
+            fn.fn_v22r = [L2dir,ystr,'/',num2str(month_array(iday)),'/',...
+                'nh3nn_v2_2R_',ystr,mstr,dstr,'_AM.nc'];
+            if ~exist(fn.fn_v22,'file')
+                disp([datestr(day_array(iday)),' v2.2 file is missing!'])
+                continue
+            end
+            if ~exist(fn.fn_v22r,'file')
+                disp([datestr(day_array(iday)),' v2.2r file is missing!'])
+                continue
+            end
+            if exist(fn.fn_v22r,'file') && ~exist(fn.fn_v22,'file')
+                disp(['For ',datestr(day_array(iday)),', you only have v2.2r file but no v2.2 file. This is not gonna work!'])
+                continue
+            end
+    end
     ifovfn = [L2dir,ystr,'/',num2str(month_array(iday)),'/',...
         'IASI_metop',a_or_b,'_L2_NH3_',ystr,mstr,dstr,'_ifov.mat'];
     ifov_save = [];
     ifov_save.ifovfn = ifovfn;
     ifov_save.update = update_ifov;
-    if ~exist(fn,'file')
-        disp([datestr(day_array(iday)),' L2 file is missing!'])
-        continue
-    end
+    
     data = F_manipulate_iasi_nc(fn,ifov_save);
     f1 = data.lat >= MinLat+MarginLat & data.lat <= MaxLat-MarginLat & ...
         data.lon >= MinLon+MarginLon & data.lon <= MaxLon-MarginLon;
