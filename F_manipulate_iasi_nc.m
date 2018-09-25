@@ -113,20 +113,44 @@ else
         inpez.angle = inp.angle;
         outpez = F_ez_ifov(inpez);
         
-        data = [];
-        data.lon = variabler.longitude.data(:);
-        data.lat = variabler.latitude.data(:);
         f_all = ismember([variable.longitude.data,variable.latitude.data],...
             [variabler.longitude.data,variabler.latitude.data],'rows');
+        %         nrlon = variable.longitude.data(f_all);
+        %         nrlat = variable.latitude.data(f_all);
+        %         rlon = variabler.longitude.data;
+        %         rlat = variabler.latitude.data;
+        %         f_o = ismember([rlon, rlat],[nrlon,nrlat],'rows');
+        %         plot(rlon(f_o),rlat(f_o),'.',rlon(~f_o),rlat(~f_o),'o',nrlon,nrlat,'.')
+        %         plot(nrlon,nrlat,'.',rlon,rlat,'o')
         if sum(f_all) ~= length(variabler.time.data)
-            error('I cannot perfectly map v2.2r pixels to v2.2 pixels!')
+            warning(['I cannot perfectly map v2.2r pixels to v2.2 pixels!',newline,...
+                'There are ',num2str(length(variabler.time.data)-sum(f_all)),...
+                ' pixels that are in v2.2r but not in v2.2!'])
+            nrlon = variable.longitude.data(f_all);
+            nrlat = variable.latitude.data(f_all);
+            rlon = variabler.longitude.data;
+            rlat = variabler.latitude.data;
+            f_o = ismember([rlon, rlat],[nrlon,nrlat],'rows');
+            data = [];
+            data.lon = variabler.longitude.data(f_o);
+            data.lat = variabler.latitude.data(f_o);
+            data.fractional_day = outp.UTC(f_all);
+            data.ifov = outpez.ifov(f_all);
+            data.colnh3 = variabler.column.data(f_o);
+            data.error = variabler.error.data(f_o);
+            data.CLcov = variabler.CLcov.data(f_o);
+            data.angle = variabler.angle.data(f_o);
+        else
+            data = [];
+            data.lon = variabler.longitude.data(:);
+            data.lat = variabler.latitude.data(:);
+            data.fractional_day = outp.UTC(f_all);
+            data.ifov = outpez.ifov(f_all);
+            data.colnh3 = variabler.column.data(:);
+            data.error = variabler.error.data(:);
+            data.CLcov = variabler.CLcov.data(:);
+            data.angle = variabler.angle.data(:);
         end
-        data.fractional_day = outp.UTC(f_all);
-        data.ifov = outpez.ifov(f_all);
-        data.colnh3 = variabler.column.data(:);
-        data.error = variabler.error.data(:);
-        data.CLcov = variabler.CLcov.data(:);
-        data.angle = variabler.angle.data(:);
         UTC = outp.UTC(f_all);
         ifov = outpez.ifov(f_all);
         save(ifov_save.ifovfn,'UTC','ifov')
