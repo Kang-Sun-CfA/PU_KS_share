@@ -64,6 +64,8 @@ for iday = 1:nday
                 disp([datestr(day_array(iday)),' L2 file is missing!'])
                 continue
             end
+            ifovfn = [L2dir,ystr,'/',num2str(month_array(iday)),'/',...
+                'IASI_metop',a_or_b,'_L2_NH3_',ystr,mstr,dstr,'_ifov.mat'];
         case 'v2.2'
             fn = [L2dir,ystr,'/',num2str(month_array(iday)),'/',...
                 'nh3nn_v2_2_',ystr,mstr,dstr,'_AM.nc'];
@@ -71,6 +73,8 @@ for iday = 1:nday
                 disp([datestr(day_array(iday)),' L2 file is missing!'])
                 continue
             end
+            ifovfn = [L2dir,ystr,'/',num2str(month_array(iday)),'/',...
+                'IASI_metop',a_or_b,'_L2_NH3_',ystr,mstr,dstr,'_ifov.mat'];
         case 'v2.2r'
             fn = [];
             fn.fn_v22 = [L2dir,ystr,'/',num2str(month_array(iday)),'/',...
@@ -89,9 +93,10 @@ for iday = 1:nday
                 disp(['For ',datestr(day_array(iday)),', you only have v2.2r file but no v2.2 file. This is not gonna work!'])
                 continue
             end
+            ifovfn = [L2dir,ystr,'/',num2str(month_array(iday)),'/',...
+                'IASI_metop',a_or_b,'_L2_NH3_',ystr,mstr,dstr,'_ifov_v22r.mat'];
     end
-    ifovfn = [L2dir,ystr,'/',num2str(month_array(iday)),'/',...
-        'IASI_metop',a_or_b,'_L2_NH3_',ystr,mstr,dstr,'_ifov.mat'];
+    
     ifov_save = [];
     ifov_save.ifovfn = ifovfn;
     ifov_save.update = update_ifov;

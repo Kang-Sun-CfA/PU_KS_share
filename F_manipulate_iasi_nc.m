@@ -157,8 +157,8 @@ else
     else
         load(ifov_save.ifovfn)
         data = [];
-        data.lon = inp.lon(:);
-        data.lat = inp.lat(:);
+        data.lon = variabler.longitude.data(:);
+        data.lat = variabler.latitude.data(:);
         data.fractional_day = UTC;
         data.ifov = ifov;
         data.colnh3 = variabler.column.data(:);
