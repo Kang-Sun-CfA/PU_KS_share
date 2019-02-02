@@ -70,7 +70,7 @@ for iday = 1:nday
         % extract useful information
         f1 = datavar.Latitude.data >= MinLat+MarginLat & datavar.Latitude.data <= MaxLat-MarginLat & ...
             datavar.Longitude.data >= MinLon+MarginLon & datavar.Longitude.data <= MaxLon-MarginLon;
-        f2 = datavar.Quality_Flag.data == 3 | datavar.Quality_Flag.data == 4;
+        f2 = datavar.Quality_Flag.data >= 3;
         f3 = datavar.Day_Night_Flag.data == 1;
         f4 = ~(datavar.tot_col.data > -999.501 & datavar.tot_col.data < -999.499);
         validmask = f1 & f2 & f3 & f4;

@@ -2,6 +2,7 @@ function output = F_subset_CrIS_NA(inp)
 % Matlab function to subset CrIS data from Shephard and Cady-Pereira.
 % Saved from F_subset_CrIS.m on 2019/01/07 for Karen's AER data, and
 % save different a priori shape information
+% updated on 2019/02/02 to solve the 2013 missing data issue
 
 olddir = pwd;
 Startdate = inp.Startdate;
@@ -69,7 +70,7 @@ for iday = 1:nday
         % extract useful information
         f1 = datavar.Latitude.data >= MinLat+MarginLat & datavar.Latitude.data <= MaxLat-MarginLat & ...
             datavar.Longitude.data >= MinLon+MarginLon & datavar.Longitude.data <= MaxLon-MarginLon;
-        f2 = datavar.Quality_Flag.data == 3 | datavar.Quality_Flag.data == 4;
+        f2 = datavar.Quality_Flag.data >= 3;
         f3 = datavar.Day_Night_Flag.data == 1;
         f4 = ~(datavar.tot_col.data > -999.501 & datavar.tot_col.data < -999.499);
         validmask = f1 & f2 & f3 & f4;
