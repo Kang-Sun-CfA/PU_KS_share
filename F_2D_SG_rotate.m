@@ -24,14 +24,14 @@ else
     SG = exp(-abs(sqrt(xx.^2+(wx/wy*yy).^2)/wx).^k);
     SG = reshape(SG(:),size(xmesh,1),size(xmesh,2));
 end
-% make sure all mass is equal
-meshsize = size(xmesh);
-if ismember(0,meshsize) || (meshsize(1) == 1 && meshsize(2) == 1)
-    return
-elseif ismember(1,meshsize)
-    SG = SG/(sum(SG(:))*(xmesh(2)-xmesh(1))*(ymesh(2)-ymesh(1)))...
-    *FWHMx/2*FWHMy/2*pi;
-else
-SG = SG/(sum(SG(:))*(xmesh(1,2)-xmesh(1,1))*(ymesh(2,1)-ymesh(1,1)))...
-    *FWHMx/2*FWHMy/2*pi;
-end
+% % make sure all mass is equal
+% meshsize = size(xmesh);
+% if ismember(0,meshsize) || (meshsize(1) == 1 && meshsize(2) == 1)
+%     return
+% elseif ismember(1,meshsize)
+%     SG = SG/(sum(SG(:))*(xmesh(2)-xmesh(1))*(ymesh(2)-ymesh(1)))...
+%     *FWHMx/2*FWHMy/2*pi;
+% else
+% SG = SG/(sum(SG(:))*(xmesh(1,2)-xmesh(1,1))*(ymesh(2,1)-ymesh(1,1)))...
+%     *FWHMx/2*FWHMy/2*pi;
+% end

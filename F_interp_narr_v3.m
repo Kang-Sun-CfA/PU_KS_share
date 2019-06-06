@@ -3,9 +3,7 @@ function outp_interp_narr = F_interp_narr_v3(inp_interp_narr)
 % written on 2019/02/04
 
 NARR_download_dir = inp_interp_narr.NARR_download_dir;
-u_all = [];
-v_all = [];
-T2m_all = [];
+
 nn = length(inp_interp_narr.hour);
 
 % maximum pbl thickness in Pa
@@ -32,10 +30,15 @@ for ihour = 1:nn
     narr_month = num2str(tmp(2),'%02d');
     narr_day = num2str(tmp(3),'%02d');
     narr_hour = num2str(tmp(4),'%02d');
+    try
     narr_data_3d = load([NARR_download_dir,'/',narr_year,'/',narr_month,'/',...
         'subset_3D_',narr_day,'_',narr_hour,'.mat']);
     narr_data_sfc = load([NARR_download_dir,'/',narr_year,'/',narr_month,'/',...
         'subset_sfc_',narr_day,'_',narr_hour,'.mat']);
+    catch s
+        disp(s)
+        continue
+    end
     
     x = narr_data_3d.x;
     y = narr_data_3d.y;
@@ -47,7 +50,11 @@ for ihour = 1:nn
     P_surf = narr_data_sfc.P_surf;
     T_surf = narr_data_sfc.T_surf;
     PBLH = narr_data_sfc.PBLH;
+    if isfield(narr_data_3d,'P')
     P = narr_data_3d.P*100;
+    else
+        P = [550 600 650 700 725 750 775 800 825 850 875 900 925 950 975 1000]'*100;
+    end
     if ~exist('nx','var')
         nx = length(x);
         ny = length(y);
