@@ -1,6 +1,7 @@
 function output_regrid = F_regrid_IASI_rotate_wind(inp,output_subset)
 % updated from F_regrid_IASI_NARR.m by Kang Sun on 2019/02/06 to work with
 % l2g data with wind data already there
+% updated on 2019/07/18 to add multiple field capability, in cell.
 
 output_regrid = [];
 
@@ -33,10 +34,17 @@ which_wind = inp.which_wind;
 else
     which_wind = 'U_pbl_NARR';
 end
+if isfield(inp,'which_temp')
+which_temp = inp.which_temp;
+else
+    which_temp = 'T_sfc_NARR';
+end
 if ~isfield(output_subset,which_wind)
     error(['Wind source ',which_wind,' does not exist in your L2g data!']);
 end
-
+if ~isfield(output_subset,which_temp)
+    error(['Temperature source ',which_temp,' does not exist in your L2g data!']);
+end
 % % the pixel geometry is much more elegant than the lat lon version
 % u_km = inp.u_km;
 % v_km = inp.v_km;
@@ -83,11 +91,29 @@ validmask = f1&f2&f3&f4;
 nL2 = sum(validmask);
 disp([num2str(nL2),' pixels to be regridded...'])
 
+if isfield(inp,'vcdname')
+    vcdname = inp.vcdname;
+else
+    vcdname = 'colnh3';
+end
+if ~iscell(vcdname)
+    if_old_vcd = true;
+    vcdname = {vcdname};
+else
+    if_old_vcd = false;
+end
+nv = length(vcdname);
+
 Lon = output_subset.lon(validmask);
 Lat = output_subset.lat(validmask);
 % Ifov = output_subset.ifov(validmask);
-ColNH3 = output_subset.colnh3(validmask);
-ColNH3e = output_subset.colnh3error(validmask);
+% ColNH3 = output_subset.colnh3(validmask);
+% ColNH3e = output_subset.colnh3error(validmask);
+VCD = nan(length(Lat),nv);
+for iv = 1:nv
+    VCD(:,iv) = output_subset.(vcdname{iv})(validmask);
+end
+VCDe = output_subset.colnh3error(validmask);
 UTC = output_subset.utc(validmask);
 
 % "e" stands for "ellipse"
@@ -97,7 +123,7 @@ Te = output_subset.t(validmask);
 
 u_vec_rot = output_subset.(which_wind)(validmask);
 v_vec_rot = output_subset.(['V',which_wind(2:end)])(validmask);
-T_vec_rot = output_subset.(['T',which_wind(2:end)])(validmask);
+T_vec_rot = output_subset.(which_temp)(validmask);
 
 disp('Converting pixel lat lon to x y in km...')
 % calculate four anchor points for each oval
@@ -128,11 +154,11 @@ wd_vec_rot(v_vec_rot < 0) = 2*pi-acos(u_vec_rot(v_vec_rot < 0)./ws_vec_rot(v_vec
 wd_idx(wd_idx == nwd+1) = 1;
 [~,~,T_idx] = histcounts(T_vec_rot,T_bin);
 
-A = zeros(nwd,nws,nT,nrows,ncols,'single');
+A = zeros(nwd,nws,nT,nrows,ncols,nv,'single');
 B = zeros(nwd,nws,nT,nrows,ncols,'single');
 D = zeros(nwd,nws,nT,nrows,ncols,'single');
 
-A_r = zeros(nwd,nws,nT,nrows,ncols,'single');
+A_r = zeros(nwd,nws,nT,nrows,ncols,nv,'single');
 B_r = zeros(nwd,nws,nT,nrows,ncols,'single');
 D_r = zeros(nwd,nws,nT,nrows,ncols,'single');
 
@@ -153,15 +179,15 @@ for iwd = 1:nwd
                %ws_inp = ws_vec_rot(use_idx);
                wd_inp = wd_vec_rot(use_idx);
                
-               vcd_inp = ColNH3(use_idx);
-               vcde_inp = ColNH3e(use_idx);
+               vcd_inp = VCD(use_idx,:);
+               vcde_inp = VCDe(use_idx);
 %                xtrack_inp = Ifov(use_idx);
                
-               Sum_Above = zeros(nrows,ncols,'single');
+               Sum_Above = zeros(nrows,ncols,nv,'single');
                Sum_Below = zeros(nrows,ncols,'single');
                Sum_SG = zeros(nrows,ncols,'single');
 
-               Sum_Abover = zeros(nrows,ncols,'single');
+               Sum_Abover = zeros(nrows,ncols,nv,'single');
                Sum_Belowr = zeros(nrows,ncols,'single');
                Sum_SGr = zeros(nrows,ncols,'single');
                
@@ -181,7 +207,7 @@ for iwd = 1:nwd
                    y_cr = xy_rot(2,5);
                    
 %                    ifov = xtrack_inp(il2);
-                   vcd = vcd_inp(il2);
+%                    vcd = vcd_inp(il2);
                    vcd_unc = vcde_inp(il2);
                    
                    dy = y_r(1)-y_r(3);
@@ -218,12 +244,15 @@ for iwd = 1:nwd
 %                    plot(x_r,y_r,'*',x_c,y_c,'o',x_rr,y_rr,'*',x_cr,y_cr,'o')
 %                    quiver(x_c,y_c,ws*cos(wd),ws*sin(wd))
                    
-                   sum_above_local = zeros(nrows,ncols,'single');
+                   sum_above_local = zeros(nrows,ncols,nv,'single');
                    sum_below_local = zeros(nrows,ncols,'single');
                    D_local = zeros(nrows,ncols,'single');
                    
                    D_local(y_index,x_index) = SG;
-                   sum_above_local(y_index,x_index) = SG/(u_km_local*v_km_local)/vcd_unc*vcd;
+                   for iv = 1:nv
+                       vcd = vcd_inp(il2,iv);
+                   sum_above_local(y_index,x_index,iv) = SG/(u_km_local*v_km_local)/vcd_unc*vcd;
+                   end
                   sum_below_local(y_index,x_index) = SG/(u_km_local*v_km_local)/vcd_unc;
                    Sum_Above = Sum_Above + sum_above_local;
                    Sum_Below = Sum_Below + sum_below_local;
@@ -251,23 +280,26 @@ for iwd = 1:nwd
 %                    plot(x_r,y_r,'*',x_c,y_c,'o',x_rr,y_rr,'*',x_cr,y_cr,'o')
 %                    quiver(x_c,y_c,ws*cos(wd),ws*sin(wd))
                    
-                   sum_above_local = zeros(nrows,ncols,'single');
+                   sum_above_local = zeros(nrows,ncols,nv,'single');
                    sum_below_local = zeros(nrows,ncols,'single');
                    D_local = zeros(nrows,ncols,'single');
                    
                    D_local(y_index,x_index) = SG;
-                   sum_above_local(y_index,x_index) = SG/(u_km_local*v_km_local)/vcd_unc*vcd;
+                   for iv = 1:nv
+                       vcd = vcd_inp(il2,iv);
+                   sum_above_local(y_index,x_index,iv) = SG/(u_km_local*v_km_local)/vcd_unc*vcd;
+                   end
                    sum_below_local(y_index,x_index) = SG/(u_km_local*v_km_local)/vcd_unc;
                    Sum_Abover = Sum_Abover + sum_above_local;
                    Sum_Belowr = Sum_Belowr + sum_below_local;
                    Sum_SGr = Sum_SGr+D_local;
                end
                
-               A(iwd,iws,iT,:,:) = Sum_Above;
+               A(iwd,iws,iT,:,:,:) = Sum_Above;
                B(iwd,iws,iT,:,:) = Sum_Below;
                D(iwd,iws,iT,:,:) = Sum_SG;
                
-               A_r(iwd,iws,iT,:,:) = Sum_Abover;
+               A_r(iwd,iws,iT,:,:,:) = Sum_Abover;
                B_r(iwd,iws,iT,:,:) = Sum_Belowr;
                D_r(iwd,iws,iT,:,:) = Sum_SGr;
             end

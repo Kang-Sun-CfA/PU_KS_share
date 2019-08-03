@@ -1,6 +1,6 @@
 function output_regrid = F_regrid_IASI_km(inp,output_subset)
 % function to take in the output from F_subset_IASI.m and regrid these L2
-% data to a L3 grid, centered at clon and clat and bounded by max_x and 
+% data to a L3 grid, centered at clon and clat and bounded by max_x and
 % max_y with resolution res in km.
 
 % Modified from F_regrid_IASI.m by Kang Sun on 2017/09/24
@@ -9,6 +9,7 @@ function output_regrid = F_regrid_IASI_km(inp,output_subset)
 % projection
 % modified on 2018/01/14 to introduce rotating super Gaussian
 % modified on 2018/06/27 to prevent SG from being nan
+% updated on 2019/07/18 to add multiple field capability, in cell.
 
 output_regrid = [];
 
@@ -57,11 +58,29 @@ validmask = f1&f2&f3&f4;
 nL2 = sum(validmask);
 disp([num2str(nL2),' pixels to be regridded...'])
 
+if isfield(inp,'vcdname')
+    vcdname = inp.vcdname;
+else
+    vcdname = 'colnh3';
+end
+if ~iscell(vcdname)
+    if_old_vcd = true;
+    vcdname = {vcdname};
+else
+    if_old_vcd = false;
+end
+nv = length(vcdname);
+
 Lon = output_subset.lon(validmask);
 Lat = output_subset.lat(validmask);
 % Ifov = output_subset.ifov(validmask);
-ColNH3 = output_subset.colnh3(validmask);
-ColNH3e = output_subset.colnh3error(validmask);
+% ColNH3 = output_subset.colnh3(validmask);
+% ColNH3e = output_subset.colnh3error(validmask);
+VCD = nan(length(Lat),nv);
+for iv = 1:nv
+    VCD(:,iv) = output_subset.(vcdname{iv})(validmask);
+end
+VCDe = output_subset.colnh3error(validmask);
 
 % "e" stands for "ellipse"
 Ue = output_subset.u(validmask);
@@ -73,7 +92,7 @@ disp('Converting pixel lat lon to x y in km...')
 Lon_r = nan(nL2,4,'single');
 Lat_r = nan(nL2,4,'single');
 for il2 = 1:nL2
-    X = F_construct_ellipse([Lon(il2);Lat(il2)],Ve(il2),Ue(il2),Te(il2),5,0); 
+    X = F_construct_ellipse([Lon(il2);Lat(il2)],Ve(il2),Ue(il2),Te(il2),5,0);
     Lon_r(il2,:) = X(1,1:end-1);
     Lat_r(il2,:) = X(2,1:end-1);
 end
@@ -86,7 +105,7 @@ inp_xy.lat = [Lat_r,Lat(:)];
 outp_xy = F_latlon2xy(inp_xy);
 
 disp('Calculating spatial response functions pixel by pixel...')
-Sum_Above = zeros(nrows,ncols,'single');
+Sum_Above = zeros(nrows,ncols,nv,'single');
 Sum_Below = zeros(nrows,ncols,'single');
 D = zeros(nrows,ncols,'single');
 count = 1;
@@ -95,29 +114,29 @@ for i = 1:nL2
     y = outp_xy.y(i,5);
     x_r = outp_xy.x(i,1:4);
     y_r = outp_xy.y(i,1:4);
-
-%     ifov = Ifov(i);
-    colnh3 = ColNH3(i);
-    colnh3e = ColNH3e(i);
+    
+    %     ifov = Ifov(i);
+    %     colnh3 = ColNH3(i);
+    vcd_unc = VCDe(i);
     
     dy = y_r(1)-y_r(3);
-                   dx = x_r(1)-x_r(3);
-                   if dx >= 0
-                       t_km_local = atan(dy/dx);
-                   else
-                       t_km_local = pi+atan(dy/dx);
-                   end
-                   v_km_local = sqrt(dx^2+dy^2)/2;
-                   u_km_local = sqrt((y_r(4)-y_r(2))^2+(x_r(4)-x_r(2))^2)/2;
-                   
-                   pixel_edge = max([v_km_local,u_km_local]);
-                   pixel_edge_inflate = max([xmargin ymargin]);
+    dx = x_r(1)-x_r(3);
+    if dx >= 0
+        t_km_local = atan(dy/dx);
+    else
+        t_km_local = pi+atan(dy/dx);
+    end
+    v_km_local = sqrt(dx^2+dy^2)/2;
+    u_km_local = sqrt((y_r(4)-y_r(2))^2+(x_r(4)-x_r(2))^2)/2;
+    
+    pixel_edge = max([v_km_local,u_km_local]);
+    pixel_edge_inflate = max([xmargin ymargin]);
     
     local_left = x-pixel_edge_inflate*pixel_edge;
-                   local_right = x+pixel_edge_inflate*pixel_edge;
-                   
-                   local_bottom = y-pixel_edge_inflate*pixel_edge;
-                   local_top = y+pixel_edge_inflate*pixel_edge;
+    local_right = x+pixel_edge_inflate*pixel_edge;
+    
+    local_bottom = y-pixel_edge_inflate*pixel_edge;
+    local_top = y+pixel_edge_inflate*pixel_edge;
     
     x_local_index = xgrid >= local_left & xgrid <= local_right;
     y_local_index = ygrid >= local_bottom & ygrid <= local_top;
@@ -126,10 +145,13 @@ for i = 1:nL2
     y_local_mesh = ymesh(y_local_index,x_local_index);
     SG = F_2D_SG_rotate(x_local_mesh,y_local_mesh,x,y,2*v_km_local,2*u_km_local,k,-t_km_local);
     SG(isnan(SG)|isinf(SG)) = 0;
-    Sum_Above(y_local_index,x_local_index) = Sum_Above(y_local_index,x_local_index)+...
-        SG/(v_km_local*u_km_local)/colnh3e*colnh3;
+    for iv = 1:nv
+        vcd = VCD(i,iv);
+        Sum_Above(y_local_index,x_local_index,iv) = Sum_Above(y_local_index,x_local_index,iv)+...
+            SG/(v_km_local*u_km_local)/vcd_unc*vcd;
+    end
     Sum_Below(y_local_index,x_local_index) = Sum_Below(y_local_index,x_local_index)+...
-        SG/(v_km_local*u_km_local)/colnh3e;
+        SG/(v_km_local*u_km_local)/vcd_unc;
     D(y_local_index,x_local_index) = D(y_local_index,x_local_index)+SG;
     if isnan(sum(Sum_Above(:)))
         disp('nan!')
@@ -142,9 +164,19 @@ for i = 1:nL2
         count = count+1;
     end
 end
+if if_old_vcd
+    Sum_Above = squeeze(Sum_Above);
+else
+    tmp = Sum_Above;
+    Sum_Above = [];
+    for iv = 1:nv
+        Sum_Above.(vcdname{iv}) = squeeze(tmp(:,:,iv));
+    end
+end
+
 output_regrid.A = Sum_Above;
 output_regrid.B = Sum_Below;
-output_regrid.C = Sum_Above./Sum_Below;
+if if_old_vcd;output_regrid.C = Sum_Above./Sum_Below;end
 output_regrid.D = D;
 
 output_regrid.xgrid = xgrid;
