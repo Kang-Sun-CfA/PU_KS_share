@@ -149,15 +149,8 @@ if ~if_parallel
         end
         
     end
-    if if_old_vcd
-        Sum_Above = squeeze(Sum_Above);
-    else
-        tmp = Sum_Above;
-        Sum_Above = [];
-        for iv = 1:nv
-            Sum_Above.(vcdname{iv}) = squeeze(tmp(:,:,iv));
-        end
-    end
+    Sum_Above = squeeze(Sum_Above);
+    
 else
     parfor i = 1:nL2
         lon = Lon(i);
